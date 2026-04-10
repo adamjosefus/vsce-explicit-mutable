@@ -38,9 +38,7 @@ function visitNode(
   ts.forEachChild(node, (child) => visitNode(child, sourceFile, sourceText, document, diagnostics));
 }
 
-// ---------------------------------------------------------------------------
 // Top-level dispatcher
-// ---------------------------------------------------------------------------
 
 function tryBuildDiagnostic(
   node: ts.Node,
@@ -66,9 +64,7 @@ function tryBuildDiagnostic(
   return undefined;
 }
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 function hasMutableComment(node: ts.Node, sourceFile: ts.SourceFile, sourceText: string): boolean {
   const triviaStart = node.pos;
@@ -123,9 +119,7 @@ function twoActions(readonlyEdit: TextEdit[], mutableEdit: TextEdit[]): CodeActi
   ];
 }
 
-// ---------------------------------------------------------------------------
 // Array types: T[]
-// ---------------------------------------------------------------------------
 
 function tryArrayDiagnostic(
   node: ts.ArrayTypeNode,
@@ -168,9 +162,7 @@ function tryArrayDiagnostic(
   );
 }
 
-// ---------------------------------------------------------------------------
 // Tuple types: [T, U]
-// ---------------------------------------------------------------------------
 
 function tryTupleDiagnostic(
   node: ts.TupleTypeNode,
@@ -211,9 +203,7 @@ function tryTupleDiagnostic(
   );
 }
 
-// ---------------------------------------------------------------------------
 // Generic type references: Array<T>, Map<K,V>, Set<T>, Record<K,V>
-// ---------------------------------------------------------------------------
 
 function tryGenericRefDiagnostic(
   node: ts.TypeReferenceNode,
@@ -359,9 +349,7 @@ function tryRecordDiagnostic(
   );
 }
 
-// ---------------------------------------------------------------------------
 // Mapped types: { [K in keyof T]: V }
-// ---------------------------------------------------------------------------
 
 function tryMappedTypeDiagnostic(
   node: ts.MappedTypeNode,
@@ -394,9 +382,7 @@ function tryMappedTypeDiagnostic(
   );
 }
 
-// ---------------------------------------------------------------------------
 // Object property signatures: { a: T }
-// ---------------------------------------------------------------------------
 
 function tryPropertySignatureDiagnostic(
   node: ts.PropertySignature,
