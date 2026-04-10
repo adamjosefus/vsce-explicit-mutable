@@ -1,28 +1,28 @@
 import { clearTimeout, setTimeout } from 'node:timers';
-import * as vscode from 'vscode';
+import * as VScode from 'vscode';
 import { MutableArrayCodeActionProvider } from './codeActions.js';
 import { DIAGNOSTIC_SOURCE, lintDocument } from './linter.js';
 
 const DEBOUNCE_MS = 300;
 const SUPPORTED_LANGUAGES = ['typescript', 'typescriptreact'];
 
-export function activate(context: vscode.ExtensionContext): void {
-  const diagnostics = vscode.languages.createDiagnosticCollection(DIAGNOSTIC_SOURCE);
+export function activate(context: VScode.ExtensionContext): void {
+  const diagnostics = VScode.languages.createDiagnosticCollection(DIAGNOSTIC_SOURCE);
   context.subscriptions.push(diagnostics);
 
-  const selector: vscode.DocumentSelector = SUPPORTED_LANGUAGES.map((language) => ({
+  const selector: VScode.DocumentSelector = SUPPORTED_LANGUAGES.map((language) => ({
     language,
   }));
 
   context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider(selector, new MutableArrayCodeActionProvider(), {
-      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
+    VScode.languages.registerCodeActionsProvider(selector, new MutableArrayCodeActionProvider(), {
+      providedCodeActionKinds: [VScode.CodeActionKind.QuickFix],
     })
   );
 
   const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  function scheduleUpdate(document: vscode.TextDocument): void {
+  function scheduleUpdate(document: VScode.TextDocument): void {
     if (!SUPPORTED_LANGUAGES.includes(document.languageId)) {
       return;
     }
@@ -42,14 +42,14 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   }
 
-  for (const document of vscode.workspace.textDocuments) {
+  for (const document of VScode.workspace.textDocuments) {
     scheduleUpdate(document);
   }
 
   context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument(scheduleUpdate),
-    vscode.workspace.onDidChangeTextDocument((e) => scheduleUpdate(e.document)),
-    vscode.workspace.onDidCloseTextDocument((document) => {
+    VScode.workspace.onDidOpenTextDocument(scheduleUpdate),
+    VScode.workspace.onDidChangeTextDocument((e) => scheduleUpdate(e.document)),
+    VScode.workspace.onDidCloseTextDocument((document) => {
       const key = document.uri.toString();
       const timer = debounceTimers.get(key);
       if (timer !== undefined) {

@@ -1,64 +1,71 @@
-import * as ts from 'typescript';
-import * as vscode from 'vscode';
+import * as Ts from 'typescript';
+import * as VScode from 'vscode';
 import type { CodeActionInfo, DiagnosticData, TextEdit } from './codeActions.js';
 
-export const DIAGNOSTIC_SOURCE = 'mutable-linter';
-export const DIAGNOSTIC_CODE = 'unannotated-mutable';
+export const DIAGNOSTIC_SOURCE = 'explicit-mutable';
+export const DIAGNOSTIC_CODE = 'unannotated-type';
 
-export function lintDocument(document: vscode.TextDocument): vscode.Diagnostic[] {
+export function lintDocument(document: VScode.TextDocument): readonly VScode.Diagnostic[] {
   const sourceText = document.getText();
-  const sourceFile = ts.createSourceFile(
+  const sourceFile = Ts.createSourceFile(
     document.fileName,
     sourceText,
-    ts.ScriptTarget.Latest,
+    Ts.ScriptTarget.Latest,
     /* setParentNodes */ true,
     getScriptKind(document.languageId)
   );
 
-  const diagnostics: vscode.Diagnostic[] = [];
-  visitNode(sourceFile, sourceFile, sourceText, document, diagnostics);
-  return diagnostics;
+  return visitNode(sourceFile, sourceFile, sourceText, document);
 }
 
-function getScriptKind(languageId: string): ts.ScriptKind {
-  return languageId === 'typescriptreact' ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+function getScriptKind(languageId: string): Ts.ScriptKind {
+  return languageId === 'typescriptreact' ? Ts.ScriptKind.TSX : Ts.ScriptKind.TS;
+}
+
+function collectChildren(node: Ts.Node): readonly Ts.Node[] {
+  const children: /* mutable */ Ts.Node[] = [];
+
+  Ts.forEachChild(node, (child) => {
+    children.push(child);
+  });
+
+  return children;
 }
 
 function visitNode(
-  node: ts.Node,
-  sourceFile: ts.SourceFile,
+  node: Ts.Node,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument,
-  diagnostics: vscode.Diagnostic[]
-): void {
-  const diagnostic = tryBuildDiagnostic(node, sourceFile, sourceText, document);
-  if (diagnostic !== undefined) {
-    diagnostics.push(diagnostic);
-  }
-  ts.forEachChild(node, (child) => visitNode(child, sourceFile, sourceText, document, diagnostics));
+  document: VScode.TextDocument
+): readonly VScode.Diagnostic[] {
+  const own = tryBuildDiagnostic(node, sourceFile, sourceText, document);
+  const childDiagnostics = collectChildren(node).flatMap((child) =>
+    visitNode(child, sourceFile, sourceText, document)
+  );
+  return own !== undefined ? [own, ...childDiagnostics] : childDiagnostics;
 }
 
 // Top-level dispatcher
 
 function tryBuildDiagnostic(
-  node: ts.Node,
-  sourceFile: ts.SourceFile,
+  node: Ts.Node,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
-  if (ts.isArrayTypeNode(node)) {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
+  if (Ts.isArrayTypeNode(node)) {
     return tryArrayDiagnostic(node, sourceFile, sourceText, document);
   }
-  if (ts.isTupleTypeNode(node)) {
+  if (Ts.isTupleTypeNode(node)) {
     return tryTupleDiagnostic(node, sourceFile, sourceText, document);
   }
-  if (ts.isTypeReferenceNode(node) && ts.isIdentifier(node.typeName)) {
+  if (Ts.isTypeReferenceNode(node) && Ts.isIdentifier(node.typeName)) {
     return tryGenericRefDiagnostic(node, sourceFile, sourceText, document);
   }
-  if (ts.isMappedTypeNode(node)) {
+  if (Ts.isMappedTypeNode(node)) {
     return tryMappedTypeDiagnostic(node, sourceFile, sourceText, document);
   }
-  if (ts.isPropertySignature(node)) {
+  if (Ts.isPropertySignature(node)) {
     return tryPropertySignatureDiagnostic(node, sourceFile, sourceText, document);
   }
   return undefined;
@@ -66,7 +73,7 @@ function tryBuildDiagnostic(
 
 // Shared helpers
 
-function hasMutableComment(node: ts.Node, sourceFile: ts.SourceFile, sourceText: string): boolean {
+function hasMutableComment(node: Ts.Node, sourceFile: Ts.SourceFile, sourceText: string): boolean {
   const triviaStart = node.pos;
   const contentStart = node.getStart(sourceFile);
   if (triviaStart >= contentStart) {
@@ -75,11 +82,11 @@ function hasMutableComment(node: ts.Node, sourceFile: ts.SourceFile, sourceText:
   return sourceText.substring(triviaStart, contentStart).includes('/* mutable */');
 }
 
-function isReadonlyParent(node: ts.Node): boolean {
+function isReadonlyParent(node: Ts.Node): boolean {
   return (
     node.parent !== undefined &&
-    ts.isTypeOperatorNode(node.parent) &&
-    node.parent.operator === ts.SyntaxKind.ReadonlyKeyword
+    Ts.isTypeOperatorNode(node.parent) &&
+    node.parent.operator === Ts.SyntaxKind.ReadonlyKeyword
   );
 }
 
@@ -92,27 +99,31 @@ function repl(start: number, end: number, text: string): TextEdit {
 }
 
 function buildDiagnostic(
-  node: ts.Node,
-  sourceFile: ts.SourceFile,
-  document: vscode.TextDocument,
+  node: Ts.Node,
+  sourceFile: Ts.SourceFile,
+  document: VScode.TextDocument,
   message: string,
-  actions: CodeActionInfo[]
-): vscode.Diagnostic {
+  actions: readonly CodeActionInfo[]
+): VScode.Diagnostic {
   const nodeStart = node.getStart(sourceFile);
   const nodeEnd = node.getEnd();
-  const range = new vscode.Range(document.positionAt(nodeStart), document.positionAt(nodeEnd));
-  const diagnostic = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Warning);
+  const range = new VScode.Range(document.positionAt(nodeStart), document.positionAt(nodeEnd));
+  const diagnostic = new VScode.Diagnostic(range, message, VScode.DiagnosticSeverity.Warning);
   diagnostic.source = DIAGNOSTIC_SOURCE;
   diagnostic.code = DIAGNOSTIC_CODE;
-  (diagnostic as vscode.Diagnostic & { data: DiagnosticData }).data = { actions };
+  (diagnostic as VScode.Diagnostic & { /* mutable */ data: DiagnosticData }).data = { actions };
+
   return diagnostic;
 }
 
-function getTypeName(node: ts.TypeReferenceNode): string {
-  return ts.isIdentifier(node.typeName) ? node.typeName.text : '';
+function getTypeName(node: Ts.TypeReferenceNode): string {
+  return Ts.isIdentifier(node.typeName) ? node.typeName.text : '';
 }
 
-function twoActions(readonlyEdit: TextEdit[], mutableEdit: TextEdit[]): CodeActionInfo[] {
+function twoActions(
+  readonlyEdit: readonly TextEdit[],
+  mutableEdit: readonly TextEdit[]
+): readonly CodeActionInfo[] {
   return [
     { label: 'Make readonly', isPreferred: true, edits: readonlyEdit },
     { label: 'Mark as mutable', isPreferred: false, edits: mutableEdit },
@@ -122,11 +133,11 @@ function twoActions(readonlyEdit: TextEdit[], mutableEdit: TextEdit[]): CodeActi
 // Array types: T[]
 
 function tryArrayDiagnostic(
-  node: ts.ArrayTypeNode,
-  sourceFile: ts.SourceFile,
+  node: Ts.ArrayTypeNode,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   if (isReadonlyParent(node)) {
     return undefined;
   }
@@ -140,7 +151,7 @@ function tryArrayDiagnostic(
   // When this array is the element type of an outer array (T[][]),
   // plain `ins('readonly ')` would produce `readonly T[][]` which TypeScript
   // parses as `readonly (T[][])` — wrong. Wrap in parens using AST positions.
-  if (ts.isArrayTypeNode(node.parent)) {
+  if (Ts.isArrayTypeNode(node.parent)) {
     return buildDiagnostic(
       node,
       sourceFile,
@@ -165,11 +176,11 @@ function tryArrayDiagnostic(
 // Tuple types: [T, U]
 
 function tryTupleDiagnostic(
-  node: ts.TupleTypeNode,
-  sourceFile: ts.SourceFile,
+  node: Ts.TupleTypeNode,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   if (isReadonlyParent(node)) {
     return undefined;
   }
@@ -181,7 +192,7 @@ function tryTupleDiagnostic(
   const nodeEnd = node.getEnd();
 
   // Same wrapping rule as arrays: [T][] must become (readonly [T])[]
-  if (ts.isArrayTypeNode(node.parent)) {
+  if (Ts.isArrayTypeNode(node.parent)) {
     return buildDiagnostic(
       node,
       sourceFile,
@@ -206,11 +217,11 @@ function tryTupleDiagnostic(
 // Generic type references: Array<T>, Map<K,V>, Set<T>, Record<K,V>
 
 function tryGenericRefDiagnostic(
-  node: ts.TypeReferenceNode,
-  sourceFile: ts.SourceFile,
+  node: Ts.TypeReferenceNode,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   const name = getTypeName(node);
   if (name === 'Array') {
     return tryArrayRefDiagnostic(node, sourceFile, sourceText, document);
@@ -227,20 +238,22 @@ function tryGenericRefDiagnostic(
   return undefined;
 }
 
-// Array<T> — normalize to shorthand -----------------------------------------
+// Array<T> — normalize to shorthand
 
 function tryArrayRefDiagnostic(
-  node: ts.TypeReferenceNode,
-  sourceFile: ts.SourceFile,
+  node: Ts.TypeReferenceNode,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   if (isReadonlyParent(node)) {
     return undefined;
   }
+
   if (hasMutableComment(node, sourceFile, sourceText)) {
     return undefined;
   }
+
   if (!node.typeArguments || node.typeArguments.length === 0) {
     return undefined;
   }
@@ -266,17 +279,18 @@ function tryArrayRefDiagnostic(
   );
 }
 
-// Map<K, V> -----------------------------------------------------------------
+// Map<K, V>
 
 function tryMapDiagnostic(
-  node: ts.TypeReferenceNode,
-  sourceFile: ts.SourceFile,
+  node: Ts.TypeReferenceNode,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   if (hasMutableComment(node, sourceFile, sourceText)) {
     return undefined;
   }
+
   if (!node.typeArguments || node.typeArguments.length < 2) {
     return undefined;
   }
@@ -293,17 +307,18 @@ function tryMapDiagnostic(
   );
 }
 
-// Set<T> --------------------------------------------------------------------
+// Set<T>---
 
 function trySetDiagnostic(
-  node: ts.TypeReferenceNode,
-  sourceFile: ts.SourceFile,
+  node: Ts.TypeReferenceNode,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   if (hasMutableComment(node, sourceFile, sourceText)) {
     return undefined;
   }
+
   if (!node.typeArguments || node.typeArguments.length === 0) {
     return undefined;
   }
@@ -320,20 +335,20 @@ function trySetDiagnostic(
   );
 }
 
-// Record<K, V> --------------------------------------------------------------
+// Record<K, V>
 
 function tryRecordDiagnostic(
-  node: ts.TypeReferenceNode,
-  sourceFile: ts.SourceFile,
+  node: Ts.TypeReferenceNode,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   if (hasMutableComment(node, sourceFile, sourceText)) {
     return undefined;
   }
 
   // Already readonly: wrapped in Readonly<...>
-  if (ts.isTypeReferenceNode(node.parent) && getTypeName(node.parent) === 'Readonly') {
+  if (Ts.isTypeReferenceNode(node.parent) && getTypeName(node.parent) === 'Readonly') {
     return undefined;
   }
 
@@ -352,26 +367,21 @@ function tryRecordDiagnostic(
 // Mapped types: { [K in keyof T]: V }
 
 function tryMappedTypeDiagnostic(
-  node: ts.MappedTypeNode,
-  sourceFile: ts.SourceFile,
+  node: Ts.MappedTypeNode,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   if (node.readonlyToken !== undefined) {
     return undefined;
   }
+
   if (hasMutableComment(node, sourceFile, sourceText)) {
     return undefined;
   }
 
   const nodeStart = node.getStart(sourceFile);
-  const nodeEnd = node.getEnd();
-
-  // Find the '[' by scanning forward from the '{' (nodeStart)
-  let bracketPos = nodeStart + 1;
-  while (bracketPos < nodeEnd && sourceText[bracketPos] !== '[') {
-    bracketPos++;
-  }
+  const bracketPos = sourceText.indexOf('[', nodeStart + 1);
 
   return buildDiagnostic(
     node,
@@ -385,19 +395,19 @@ function tryMappedTypeDiagnostic(
 // Object property signatures: { a: T }
 
 function tryPropertySignatureDiagnostic(
-  node: ts.PropertySignature,
-  sourceFile: ts.SourceFile,
+  node: Ts.PropertySignature,
+  sourceFile: Ts.SourceFile,
   sourceText: string,
-  document: vscode.TextDocument
-): vscode.Diagnostic | undefined {
+  document: VScode.TextDocument
+): VScode.Diagnostic | undefined {
   // Only flag properties inside a plain object type literal (not interface/class)
-  if (!ts.isTypeLiteralNode(node.parent)) {
+  if (!Ts.isTypeLiteralNode(node.parent)) {
     return undefined;
   }
 
   // Already readonly
   const hasReadonly =
-    node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ReadonlyKeyword) ?? false;
+    node.modifiers?.some((m) => m.kind === Ts.SyntaxKind.ReadonlyKeyword) ?? false;
   if (hasReadonly) {
     return undefined;
   }
