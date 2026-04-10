@@ -1,7 +1,7 @@
 {
   "name": "explicit-mutable",
   "displayName": "Explicit Mutable",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Warns on unannotated mutable types in TypeScript files.",
   "categories": [
     "Linters"
