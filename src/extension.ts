@@ -1,9 +1,10 @@
-import * as vscode from "vscode";
-import { lintDocument, DIAGNOSTIC_SOURCE } from "./linter.js";
-import { MutableArrayCodeActionProvider } from "./codeActions.js";
+import { clearTimeout, setTimeout } from 'node:timers';
+import * as vscode from 'vscode';
+import { MutableArrayCodeActionProvider } from './codeActions.js';
+import { DIAGNOSTIC_SOURCE, lintDocument } from './linter.js';
 
 const DEBOUNCE_MS = 300;
-const SUPPORTED_LANGUAGES = ["typescript", "typescriptreact"];
+const SUPPORTED_LANGUAGES = ['typescript', 'typescriptreact'];
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection(DIAGNOSTIC_SOURCE);
@@ -14,25 +15,27 @@ export function activate(context: vscode.ExtensionContext): void {
   }));
 
   context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider(
-      selector,
-      new MutableArrayCodeActionProvider(),
-      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
-    )
+    vscode.languages.registerCodeActionsProvider(selector, new MutableArrayCodeActionProvider(), {
+      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
+    })
   );
 
   const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   function scheduleUpdate(document: vscode.TextDocument): void {
-    if (!SUPPORTED_LANGUAGES.includes(document.languageId)) return;
+    if (!SUPPORTED_LANGUAGES.includes(document.languageId)) {
+      return;
+    }
 
     const key = document.uri.toString();
     const existing = debounceTimers.get(key);
-    if (existing !== undefined) clearTimeout(existing);
+    if (existing !== undefined) {
+      globalThis.clearTimeout(existing);
+    }
 
     debounceTimers.set(
       key,
-      setTimeout(() => {
+      globalThis.setTimeout(() => {
         debounceTimers.delete(key);
         diagnostics.set(document.uri, lintDocument(document));
       }, DEBOUNCE_MS)
