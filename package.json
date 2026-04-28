@@ -61,7 +61,8 @@
     "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.28.0",
     "husky": "^9.1.7",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^4.0.0"
   },
   "engines": {
     "vscode": "^1.115.0"

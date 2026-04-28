@@ -3,8 +3,12 @@
     "target": "ES2022",
     "module": "Node16",
     "moduleResolution": "Node16",
-    "lib": ["ES2022"],
-    "types": ["node"],
+    "lib": [
+      "ES2022"
+    ],
+    "types": [
+      "node"
+    ],
     "outDir": "out",
     "rootDir": "src",
     "strict": true,
@@ -13,5 +17,11 @@
     "noImplicitReturns": true,
     "skipLibCheck": false
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/__mocks__"
+  ]
 }

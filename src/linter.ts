@@ -381,7 +381,12 @@ function tryMappedTypeDiagnostic(
   }
 
   const nodeStart = node.getStart(sourceFile);
-  const bracketPos = sourceText.indexOf('[', nodeStart + 1);
+  const nodeEnd = node.getEnd();
+
+  let bracketPos = nodeStart + 1;
+  while (bracketPos < nodeEnd && sourceText[bracketPos] !== '[') {
+    bracketPos++;
+  }
 
   return buildDiagnostic(
     node,
