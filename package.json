@@ -17,8 +17,9 @@
     "compile": "tsc --noEmit",
     "fmt": "biome check . --error-on-warnings",
     "fmt:write": "biome check . --write --error-on-warnings",
-    "package": "vsce package --no-dependencies",
+    "package": "pnpm compile && vsce package --no-dependencies",
     "prepare": "husky",
+    "test": "vitest run",
     "vscode:prepublish": "npm run bundle",
     "watch": "node esbuild.mjs --watch"
   },
