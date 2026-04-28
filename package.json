@@ -1,7 +1,7 @@
 {
   "name": "explicit-mutable",
   "displayName": "Explicit Mutable",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Warns on unannotated mutable types in TypeScript files.",
   "categories": [
     "Linters"
@@ -23,7 +23,33 @@
     "vscode:prepublish": "npm run bundle",
     "watch": "node esbuild.mjs --watch"
   },
-  "contributes": {},
+  "contributes": {
+    "configuration": {
+      "title": "Explicit Mutable",
+      "properties": {
+        "explicit-mutable.enable.ts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable linting for TypeScript files (.ts, .mts, .cts)."
+        },
+        "explicit-mutable.enable.tsx": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable linting for TSX files (.tsx, .mtsx, .ctsx)."
+        },
+        "explicit-mutable.enable.declarations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable linting for declaration files (.d.ts, .d.mts, .d.cts, .d.tsx, .d.mtsx, .d.ctsx)."
+        },
+        "explicit-mutable.ignoreNodeModules": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ignore files inside node_modules."
+        }
+      }
+    }
+  },
   "activationEvents": [
     "onLanguage:typescript",
     "onLanguage:typescriptreact"
